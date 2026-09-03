@@ -100,11 +100,32 @@ async def webhook_mp(request: Request):
 @app.api_route("/webhook-paypal", methods=["GET", "POST"])
 async def webhook_paypal(request: Request):
     global recaudado_actual
-    recaudado_actual += 10000 
-    
-    # PayPal también guardará el total cuando lo configuremos
-    guardar_nuevo_total(recaudado_actual)
-    await manager.broadcast({"nuevo_total": recaudado_actual})
+    try:
+        datos = await request.json()
+        tipo_evento = datos.get("event_type")
+        
+        # PayPal avisa cuando el pago se completó con éxito
+        if tipo_evento in ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.SALE.COMPLETED"]:
+            
+            # Extraemos el monto en dólares de la estructura que manda PayPal
+            recurso = datos.get("resource", {})
+            monto = recurso.get("amount", {})
+            monto_usd = float(monto.get("value") or monto.get("total") or 0)
+            
+            if monto_usd > 0:
+                # Conversión automática: 1 Dólar = 900 Pesos (puedes cambiar este número)
+                monto_clp = int(monto_usd * 900)
+                
+                recaudado_actual += monto_clp
+                
+                # Guardamos permanentemente y avisamos a la web
+                guardar_nuevo_total(recaudado_actual)
+                await manager.broadcast({"nuevo_total": recaudado_actual})
+                print(f"✅ ¡PayPal detectó ${monto_usd} USD! Sumando ${monto_clp} CLP. Total: ${recaudado_actual}")
+
+    except Exception as e:
+        print("Error procesando PayPal:", e)
+        
     return {"status": "ok"}
 
 @app.websocket("/ws")
