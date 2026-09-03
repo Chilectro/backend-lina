@@ -19,6 +19,8 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        # NUEVO: Apenas alguien entra a la página, le mandamos el total actual
+        await websocket.send_json({"nuevo_total": recaudado_actual})
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
@@ -36,24 +38,30 @@ recaudado_actual = 859000
 def root():
     return {"estado": "Servidor de Lina funcionando 🐶"}
 
-# Puerta 1: Escucha a Mercado Pago
 @app.post("/webhook-mp")
 async def webhook_mp(request: Request):
     global recaudado_actual
-    datos = await request.json()
-    print("Pago recibido en Mercado Pago:", datos)
-    # Temporal: suma $15.000 por cada aviso de MP
+    
+    # NUEVO: Blindaje contra formatos raros de Mercado Pago
+    try:
+        datos = await request.json()
+        print("✅ Pago de MP (JSON):", datos)
+    except:
+        datos = await request.body()
+        print("⚠️ Pago de MP (Texto/Form):", datos)
+
     recaudado_actual += 15000 
     await manager.broadcast({"nuevo_total": recaudado_actual})
     return {"status": "ok"}
 
-# Puerta 2: Escucha a PayPal
 @app.post("/webhook-paypal")
 async def webhook_paypal(request: Request):
     global recaudado_actual
-    datos = await request.json()
-    print("Pago recibido en PayPal:", datos)
-    # Temporal: suma $10.000 por cada aviso de PayPal
+    try:
+        datos = await request.json()
+        print("✅ Pago de PayPal:", datos)
+    except:
+        pass
     recaudado_actual += 10000 
     await manager.broadcast({"nuevo_total": recaudado_actual})
     return {"status": "ok"}
