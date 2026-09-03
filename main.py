@@ -14,6 +14,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- CLAVES DEL SISTEMA ---
+ACCESS_TOKEN = "APP_USR-1516518507014771-090315-4fbc6f089ec6211569cd72f2e177f260-2424638049" 
+JSONBIN_URL = "https://api.jsonbin.io/v3/b/6a99dca5da38895dfe357ee6"
+JSONBIN_KEY = "$2a$10$/0nJy8Q4XqskjU42a5Nxeuq4PDVnF5y1m8J6O1Rqovtz0GC3pG4.y"
+
+# --- FUNCIONES DEL NOTEPAD EN LA NUBE ---
+def leer_total_guardado():
+    try:
+        req = urllib.request.Request(JSONBIN_URL)
+        req.add_header("X-Master-Key", JSONBIN_KEY)
+        with urllib.request.urlopen(req) as response:
+            datos = json.loads(response.read())
+            return datos["record"]["total"]
+    except Exception as e:
+        print("Error leyendo JSONBin (usando respaldo):", e)
+        return 860000 
+
+def guardar_nuevo_total(monto):
+    try:
+        req = urllib.request.Request(JSONBIN_URL, data=json.dumps({"total": monto}).encode("utf-8"), method="PUT")
+        req.add_header("X-Master-Key", JSONBIN_KEY)
+        req.add_header("Content-Type", "application/json")
+        urllib.request.urlopen(req)
+        print("✅ Nuevo total guardado en la nube para siempre.")
+    except Exception as e:
+        print("Error guardando en JSONBin:", e)
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -33,15 +60,13 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-recaudado_actual = 859000
-# PEGA TU TOKEN AQUÍ (MANTÉN LAS COMILLAS)
-ACCESS_TOKEN = "APP_USR-1516518507014771-090315-4fbc6f089ec6211569cd72f2e177f260-2424638049" 
+# Al encender el servidor, lee el bloc de notas
+recaudado_actual = leer_total_guardado()
 
 @app.get("/")
 def root():
-    return {"estado": "Servidor de Lina funcionando 🐶"}
+    return {"estado": f"Servidor de Lina funcionando. Recaudado: ${recaudado_actual}"}
 
-# Blindado para aceptar pruebas y pagos reales sin errores
 @app.api_route("/webhook-mp", methods=["GET", "POST"])
 async def webhook_mp(request: Request):
     global recaudado_actual
@@ -63,7 +88,9 @@ async def webhook_mp(request: Request):
                 if info_pago.get("status") == "approved":
                     monto = info_pago.get("transaction_amount", 0)
                     recaudado_actual += monto
-                    print(f"✅ ¡Radar IPN detectó donación por ${monto}! Total: ${recaudado_actual}")
+                    
+                    # Guardamos permanentemente y avisamos a la web
+                    guardar_nuevo_total(recaudado_actual)
                     await manager.broadcast({"nuevo_total": recaudado_actual})
     except Exception as e:
         print("Error en Radar:", e)
@@ -74,6 +101,9 @@ async def webhook_mp(request: Request):
 async def webhook_paypal(request: Request):
     global recaudado_actual
     recaudado_actual += 10000 
+    
+    # PayPal también guardará el total cuando lo configuremos
+    guardar_nuevo_total(recaudado_actual)
     await manager.broadcast({"nuevo_total": recaudado_actual})
     return {"status": "ok"}
 
