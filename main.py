@@ -87,21 +87,7 @@ async def webhook_paypal(request: Request):
     await manager.broadcast({"nuevo_total": recaudado_actual})
     return {"status": "ok"}
 
-@app.get("/crear-link/{monto}")
-async def crear_link(monto: int):
-    url = "https://api.mercadopago.com/checkout/preferences"
-    datos = {
-        "items": [{"title": "Aporte Todos por Lina", "quantity": 1, "unit_price": monto}],
-        "notification_url": "https://backend-lina.onrender.com/webhook-mp"
-    }
-    req = urllib.request.Request(url, data=json.dumps(datos).encode("utf-8"))
-    req.add_header("Authorization", f"Bearer {ACCESS_TOKEN}")
-    req.add_header("Content-Type", "application/json")
-    try:
-        with urllib.request.urlopen(req) as response:
-            return {"tu_link_oficial": json.loads(response.read())["init_point"]}
-    except Exception as e:
-        return {"error": str(e)}
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
