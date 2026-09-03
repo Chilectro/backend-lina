@@ -33,10 +33,9 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Variables de la campaña
 recaudado_actual = 859000
-# PEGA TU TOKEN AQUÍ ABAJO (MANTÉN LAS COMILLAS)
-ACCESS_TOKEN = "APP_USR-1516518507014771-090315-4fbc6f089ec6211569cd72f2e177f260-2424638049" 
+# PEGA TU TOKEN AQUÍ (MANTÉN LAS COMILLAS)
+ACCESS_TOKEN = "APP_USR-TU_TOKEN_AQUI" 
 
 @app.get("/")
 def root():
@@ -46,48 +45,40 @@ def root():
 async def webhook_mp(request: Request):
     global recaudado_actual
     try:
-        datos = await request.json()
+        # El radar IPN manda el ID del pago en la URL
+        pago_id = request.query_params.get("id") or request.query_params.get("data.id")
         
-        # 1. Verificamos que sea un aviso de pago
-        if datos.get("type") == "payment" or "payment" in datos.get("action", ""):
+        # Si no viene en la URL, lo busca adentro por si acaso
+        if not pago_id:
+            datos = await request.json()
             pago_id = datos.get("data", {}).get("id")
             
-            # 2. Ignoramos el pago falso de prueba de Mercado Pago
-            if pago_id and pago_id != "123456": 
+        if pago_id and pago_id != "123456": 
+            # Va al banco a consultar el monto exacto de este ID
+            url = f"https://api.mercadopago.com/v1/payments/{pago_id}"
+            req = urllib.request.Request(url)
+            req.add_header("Authorization", f"Bearer {ACCESS_TOKEN}")
+            
+            with urllib.request.urlopen(req) as response:
+                info_pago = json.loads(response.read())
                 
-                # 3. Le preguntamos a MP el monto real usando tu Token
-                url = f"https://api.mercadopago.com/v1/payments/{pago_id}"
-                req = urllib.request.Request(url)
-                req.add_header("Authorization", f"Bearer {ACCESS_TOKEN}")
-                
-                with urllib.request.urlopen(req) as response:
-                    info_pago = json.loads(response.read())
-                    estado = info_pago.get("status")
+                if info_pago.get("status") == "approved":
                     monto = info_pago.get("transaction_amount", 0)
-                    
-                    # 4. Si el pago fue aprobado, lo sumamos!
-                    if estado == "approved":
-                        recaudado_actual += monto
-                        print(f"✅ ¡Pago real aprobado por ${monto}! Total: ${recaudado_actual}")
-                        await manager.broadcast({"nuevo_total": recaudado_actual})
+                    recaudado_actual += monto
+                    print(f"✅ ¡Radar IPN detectó donación de ${monto}! Total: ${recaudado_actual}")
+                    await manager.broadcast({"nuevo_total": recaudado_actual})
     except Exception as e:
-        print("Error procesando webhook MP:", e)
+        print("Error en Radar:", e)
         
     return {"status": "ok"}
 
 @app.post("/webhook-paypal")
 async def webhook_paypal(request: Request):
     global recaudado_actual
-    try:
-        datos = await request.json()
-        print("✅ Pago de PayPal recibido")
-    except:
-        pass
+    # (PayPal lo conectaremos exacto igual cuando terminemos MP)
     recaudado_actual += 10000 
     await manager.broadcast({"nuevo_total": recaudado_actual})
     return {"status": "ok"}
-
-
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
