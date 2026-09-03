@@ -35,7 +35,7 @@ manager = ConnectionManager()
 
 recaudado_actual = 859000
 # PEGA TU TOKEN AQUÍ (MANTÉN LAS COMILLAS)
-ACCESS_TOKEN = "APP_USR-TU_TOKEN_AQUI" 
+ACCESS_TOKEN = "APP_USR-1516518507014771-090315-4fbc6f089ec6211569cd72f2e177f260-2424638049" 
 
 @app.get("/")
 def root():
