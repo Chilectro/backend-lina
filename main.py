@@ -41,20 +41,18 @@ ACCESS_TOKEN = "APP_USR-TU_TOKEN_AQUI"
 def root():
     return {"estado": "Servidor de Lina funcionando 🐶"}
 
-@app.post("/webhook-mp")
+# Blindado para aceptar pruebas y pagos reales sin errores
+@app.api_route("/webhook-mp", methods=["GET", "POST"])
 async def webhook_mp(request: Request):
     global recaudado_actual
     try:
-        # El radar IPN manda el ID del pago en la URL
         pago_id = request.query_params.get("id") or request.query_params.get("data.id")
         
-        # Si no viene en la URL, lo busca adentro por si acaso
-        if not pago_id:
+        if not pago_id and request.method == "POST":
             datos = await request.json()
             pago_id = datos.get("data", {}).get("id")
             
         if pago_id and pago_id != "123456": 
-            # Va al banco a consultar el monto exacto de este ID
             url = f"https://api.mercadopago.com/v1/payments/{pago_id}"
             req = urllib.request.Request(url)
             req.add_header("Authorization", f"Bearer {ACCESS_TOKEN}")
@@ -65,17 +63,16 @@ async def webhook_mp(request: Request):
                 if info_pago.get("status") == "approved":
                     monto = info_pago.get("transaction_amount", 0)
                     recaudado_actual += monto
-                    print(f"✅ ¡Radar IPN detectó donación de ${monto}! Total: ${recaudado_actual}")
+                    print(f"✅ ¡Radar IPN detectó donación por ${monto}! Total: ${recaudado_actual}")
                     await manager.broadcast({"nuevo_total": recaudado_actual})
     except Exception as e:
         print("Error en Radar:", e)
         
     return {"status": "ok"}
 
-@app.post("/webhook-paypal")
+@app.api_route("/webhook-paypal", methods=["GET", "POST"])
 async def webhook_paypal(request: Request):
     global recaudado_actual
-    # (PayPal lo conectaremos exacto igual cuando terminemos MP)
     recaudado_actual += 10000 
     await manager.broadcast({"nuevo_total": recaudado_actual})
     return {"status": "ok"}
