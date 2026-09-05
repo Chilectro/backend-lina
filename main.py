@@ -108,6 +108,29 @@ async def sumar_manual(monto: float, moneda: str = "USD", clave: str = ""):
 
 # ==========================================
 
+# ==========================================
+# URL SECRETA PARA CORREGIR Y FIJAR EL MONTO EXACTO
+# ==========================================
+@app.get("/fijar")
+async def fijar_monto(total: int, clave: str = ""):
+    global recaudado_actual
+    
+    if clave != "lina2026": 
+        return {"error": "Clave incorrecta. No tienes permiso."}
+    
+    # Sobreescribe la memoria del servidor
+    recaudado_actual = total
+    # Guarda el nuevo valor en JSONBin
+    guardar_nuevo_total(recaudado_actual)
+    # Avisa a la página web para que actualice la barra al instante
+    await manager.broadcast({"nuevo_total": recaudado_actual})
+    
+    return {
+        "exito": True, 
+        "mensaje": f"¡Listo! El total se ha corregido a {total} CLP en todos lados."
+    }
+# ==========================================
+
 @app.api_route("/webhook-mp", methods=["GET", "POST"])
 async def webhook_mp(request: Request):
     global recaudado_actual
