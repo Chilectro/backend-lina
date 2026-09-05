@@ -3,6 +3,7 @@ import urllib.request
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
+import os
 
 app = FastAPI()
 
@@ -15,7 +16,7 @@ app.add_middleware(
 )
 
 # --- CLAVES DEL SISTEMA ---
-ACCESS_TOKEN = "APP_USR-1516518507014771-090315-4fbc6f089ec6211569cd72f2e177f260-2424638049" 
+MERCADO_PAGO_TOKEN = os.getenv("MERCADO_PAGO_TOKEN") 
 JSONBIN_URL = "https://api.jsonbin.io/v3/b/6a99dca5da38895dfe357ee6"
 JSONBIN_KEY = "$2a$10$/0nJy8Q4XqskjU42a5Nxeuq4PDVnF5y1m8J6O1Rqovtz0GC3pG4.y"
 
