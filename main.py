@@ -28,8 +28,11 @@ def leer_total_guardado():
         with urllib.request.urlopen(req) as response:
             datos = json.loads(response.read())
             return datos["record"]["total"]
+    except urllib.error.HTTPError as e:
+        print(f"Error 403: Tu clave de JSONBin o el ID del Bin son incorrectos. Revisa en jsonbin.io. Error: {e}")
+        return 1255000
     except Exception as e:
-        print("Error leyendo JSONBin (usando respaldo):", e)
+        print("Otro error leyendo JSONBin:", e)
         return 1255000
 
 def guardar_nuevo_total(monto):
@@ -38,7 +41,7 @@ def guardar_nuevo_total(monto):
         req.add_header("X-Master-Key", JSONBIN_KEY)
         req.add_header("Content-Type", "application/json")
         urllib.request.urlopen(req)
-        print("✅ Nuevo total guardado en la nube para siempre.")
+        print(f"✅ Nuevo total (${monto}) guardado en la nube de JSONBin para siempre.")
     except Exception as e:
         print("Error guardando en JSONBin:", e)
 
@@ -61,12 +64,43 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Al encender el servidor, lee el bloc de notas
+# Al encender el servidor, lee la base de datos
 recaudado_actual = leer_total_guardado()
 
 @app.get("/")
 def root():
     return {"estado": f"Servidor de Lina funcionando. Recaudado: ${recaudado_actual}"}
+
+# ==========================================
+# LA URL SECRETA PARA SUMAR MANUALMENTE
+# ==========================================
+@app.get("/sumar")
+async def sumar_manual(monto: float, moneda: str = "USD", clave: str = ""):
+    global recaudado_actual
+    
+    # Clave de seguridad para que nadie más meta plata fantasma
+    if clave != "lina2026": 
+        return {"error": "Clave incorrecta. No tienes permiso."}
+    
+    # Conversor de monedas automático
+    if moneda.upper() == "USD":
+        monto_clp = int(monto * 900)
+    elif moneda.upper() == "EUR":
+        monto_clp = int(monto * 980)
+    else:
+        monto_clp = int(monto) # Si pones CLP o nada, asume pesos chilenos
+        
+    recaudado_actual += monto_clp
+    guardar_nuevo_total(recaudado_actual)
+    await manager.broadcast({"nuevo_total": recaudado_actual})
+    
+    return {
+        "exito": True, 
+        "mensaje": f"Se sumaron {monto} {moneda.upper()} ({monto_clp} CLP).",
+        "nuevo_total_historico": recaudado_actual
+    }
+
+# ==========================================
 
 @app.api_route("/webhook-mp", methods=["GET", "POST"])
 async def webhook_mp(request: Request):
@@ -81,7 +115,7 @@ async def webhook_mp(request: Request):
         if pago_id and pago_id != "123456": 
             url = f"https://api.mercadopago.com/v1/payments/{pago_id}"
             req = urllib.request.Request(url)
-            req.add_header("Authorization", f"Bearer {ACCESS_TOKEN}")
+            req.add_header("Authorization", f"Bearer {MERCADO_PAGO_TOKEN}")
             
             with urllib.request.urlopen(req) as response:
                 info_pago = json.loads(response.read())
@@ -90,42 +124,10 @@ async def webhook_mp(request: Request):
                     monto = info_pago.get("transaction_amount", 0)
                     recaudado_actual += monto
                     
-                    # Guardamos permanentemente y avisamos a la web
                     guardar_nuevo_total(recaudado_actual)
                     await manager.broadcast({"nuevo_total": recaudado_actual})
     except Exception as e:
         print("Error en Radar:", e)
-        
-    return {"status": "ok"}
-
-@app.api_route("/webhook-paypal", methods=["GET", "POST"])
-async def webhook_paypal(request: Request):
-    global recaudado_actual
-    try:
-        datos = await request.json()
-        tipo_evento = datos.get("event_type")
-        
-        # PayPal avisa cuando el pago se completó con éxito
-        if tipo_evento in ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.SALE.COMPLETED"]:
-            
-            # Extraemos el monto en dólares de la estructura que manda PayPal
-            recurso = datos.get("resource", {})
-            monto = recurso.get("amount", {})
-            monto_usd = float(monto.get("value") or monto.get("total") or 0)
-            
-            if monto_usd > 0:
-                # Conversión automática: 1 Dólar = 900 Pesos (puedes cambiar este número)
-                monto_clp = int(monto_usd * 900)
-                
-                recaudado_actual += monto_clp
-                
-                # Guardamos permanentemente y avisamos a la web
-                guardar_nuevo_total(recaudado_actual)
-                await manager.broadcast({"nuevo_total": recaudado_actual})
-                print(f"✅ ¡PayPal detectó ${monto_usd} USD! Sumando ${monto_clp} CLP. Total: ${recaudado_actual}")
-
-    except Exception as e:
-        print("Error procesando PayPal:", e)
         
     return {"status": "ok"}
 
