@@ -29,7 +29,7 @@ def leer_total_guardado():
             return datos["record"]["total"]
     except Exception as e:
         print("Error leyendo JSONBin (usando respaldo):", e)
-        return 1205000
+        return 1255000
 
 def guardar_nuevo_total(monto):
     try:
