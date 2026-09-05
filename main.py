@@ -18,13 +18,13 @@ app.add_middleware(
 # --- CLAVES DEL SISTEMA ---
 MERCADO_PAGO_TOKEN = os.getenv("MERCADO_PAGO_TOKEN") 
 JSONBIN_URL = "https://api.jsonbin.io/v3/b/6a99dca5da38895dfe357ee6"
-JSONBIN_KEY = "$2a$10$/0nJy8Q4XqskjU42a5Nxeuq4PDVnF5y1m8J6O1Rqovtz0GC3pG4.y"
+JSONBIN_KEY = "$2a$10$IKhgH/ToGS6VytzmoMwpJeZrnA41Whgk.qc9ZKMSX3okndW1eaDDy"
 
 # --- FUNCIONES DEL NOTEPAD EN LA NUBE ---
 def leer_total_guardado():
     try:
         req = urllib.request.Request(JSONBIN_URL)
-        req.add_header("X-Master-Key", JSONBIN_KEY)
+        req.add_header("X-Access-Key", JSONBIN_KEY)
         with urllib.request.urlopen(req) as response:
             datos = json.loads(response.read())
             return datos["record"]["total"]
@@ -38,7 +38,7 @@ def leer_total_guardado():
 def guardar_nuevo_total(monto):
     try:
         req = urllib.request.Request(JSONBIN_URL, data=json.dumps({"total": monto}).encode("utf-8"), method="PUT")
-        req.add_header("X-Master-Key", JSONBIN_KEY)
+        req.add_header("X-Access-Key", JSONBIN_KEY)
         req.add_header("Content-Type", "application/json")
         urllib.request.urlopen(req)
         print(f"✅ Nuevo total (${monto}) guardado en la nube de JSONBin para siempre.")
